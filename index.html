@@ -1,0 +1,317 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Blog to Audiobook</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f2f5fb;
+            color: #243047;
+            line-height: 1.6;
+        }
+
+        header {
+            background: #263b80;
+            color: white;
+            text-align: center;
+            padding: 30px 16px;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 32px;
+        }
+
+        header p {
+            margin-bottom: 0;
+        }
+
+        main {
+            width: 90%;
+            max-width: 760px;
+            margin: 30px auto;
+            padding: 28px;
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 4px 16px #00000012;
+        }
+
+        label {
+            display: block;
+            margin: 18px 0 8px;
+            font-weight: bold;
+        }
+
+        textarea,
+        select {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #aab4c5;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+
+        textarea {
+            min-height: 190px;
+            resize: vertical;
+        }
+
+        textarea:focus,
+        select:focus {
+            outline: 2px solid #526bd0;
+            outline-offset: 2px;
+        }
+
+        .char-count {
+            margin-top: 5px;
+            text-align: right;
+            font-size: 13px;
+            color: #58647a;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 20px;
+            padding: 15px;
+            background: #263b80;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #192b66;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        #status {
+            margin-top: 20px;
+            overflow-wrap: anywhere;
+        }
+
+        #playerSection {
+            margin-top: 24px;
+            padding: 20px;
+            background: #eef3ff;
+            border-radius: 10px;
+        }
+
+        #playerSection h2 {
+            margin-top: 0;
+        }
+
+        audio {
+            display: block;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .hint {
+            font-size: 14px;
+            color: #58647a;
+        }
+
+        footer {
+            padding: 20px;
+            text-align: center;
+            color: #58647a;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Blog to Audiobook</h1>
+        <p>Turn written content into audio you can listen to.</p>
+    </header>
+
+    <main>
+        <h2>Create Your Audiobook</h2>
+
+        <p>
+            Paste a short blog, article, or story below.
+            Our application will convert it into speech.
+        </p>
+
+        <form id="audiobookForm">
+
+            <label for="blogText">Blog or Story Text</label>
+
+            <textarea
+                id="blogText"
+                maxlength="2500"
+                required
+                placeholder="Paste your blog or story here..."
+            ></textarea>
+
+            <div class="char-count" id="charCount">
+                0 / 2500 characters
+            </div>
+
+            <label for="audience">Choose Your Audience</label>
+
+            <select id="audience">
+                <option value="adult">Adult</option>
+                <option value="children">Children</option>
+            </select>
+
+            <button id="generateButton" type="submit">
+                Generate Audiobook
+            </button>
+
+        </form>
+
+        <p id="status" role="status" aria-live="polite"></p>
+
+        <section id="playerSection" hidden>
+            <h2>Your Audiobook Is Ready!</h2>
+
+            <p>
+                Use the audio controls below to listen to your audiobook.
+            </p>
+
+            <audio id="audioPlayer" controls preload="none">
+                Your browser does not support audio playback.
+            </audio>
+
+            <p class="hint">
+                The temporary playback link expires after one hour.
+                Generate the audiobook again if the link expires.
+            </p>
+        </section>
+    </main>
+
+    <footer>
+        Accessible listening for blogs, articles, and stories.
+    </footer>
+
+    <script>
+        // Existing AWS API endpoint
+        const API_URL =
+            "https://lk4xcxr3f5.execute-api.ap-southeast-2.amazonaws.com/generate";
+
+        const form = document.getElementById("audiobookForm");
+        const blogText = document.getElementById("blogText");
+        const audience = document.getElementById("audience");
+        const button = document.getElementById("generateButton");
+        const status = document.getElementById("status");
+        const charCount = document.getElementById("charCount");
+        const playerSection = document.getElementById("playerSection");
+        const audioPlayer = document.getElementById("audioPlayer");
+
+        // Display the number of characters entered
+        blogText.addEventListener("input", function () {
+            charCount.textContent =
+                blogText.value.length + " / 2500 characters";
+        });
+
+        // Generate the audiobook when the form is submitted
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const text = blogText.value.trim();
+            const selectedAudience = audience.value;
+
+            if (!text) {
+                status.textContent = "Please enter some text first.";
+                return;
+            }
+
+            if (text.length > 2500) {
+                status.textContent =
+                    "Please use no more than 2500 characters.";
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = "Generating...";
+            status.textContent =
+                "Generating your audiobook. Please wait.";
+
+            // Remove any previous audio before a new request
+            audioPlayer.pause();
+            audioPlayer.removeAttribute("src");
+            audioPlayer.load();
+            playerSection.hidden = true;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        audience: selectedAudience
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        result.error || "The API request failed."
+                    );
+                }
+
+                if (!result.file || !result.audioUrl) {
+                    throw new Error(
+                        "The API did not return the audio playback URL. " +
+                        "Check that the updated Lambda code is deployed."
+                    );
+                }
+
+                // Set the temporary S3 playback URL
+                audioPlayer.src = result.audioUrl;
+                audioPlayer.load();
+
+                playerSection.hidden = false;
+
+                status.textContent =
+                    "Audiobook generated successfully! " +
+                    "Your audio is ready to play.";
+
+                // Move focus to the player for keyboard users
+                playerSection.querySelector("h2").tabIndex = -1;
+                playerSection.querySelector("h2").focus();
+
+            } catch (error) {
+                console.error("Audiobook error:", error);
+
+                status.textContent =
+                    "Unable to generate the audiobook. " +
+                    error.message +
+                    " Check your internet connection and API CORS settings.";
+            } finally {
+                button.disabled = false;
+                button.textContent = "Generate Audiobook";
+            }
+        });
+    </script>
+
+</body>
+</html>
+```
